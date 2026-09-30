@@ -7,7 +7,7 @@ and charted against price in Streamlit.
 ## Quick start
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[all]"
 cp .env.example .env            # add Reddit client id/secret (free "script" app)
 pytest -q                       # offline sanity check

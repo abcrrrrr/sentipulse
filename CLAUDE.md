@@ -27,7 +27,8 @@ streamlit run dashboard/app.py
 ```
 
 ## Conventions
-- Tests must stay offline: use `JsonlSource` + `vader`, never hit Reddit/X/Anthropic/yfinance.
+- Tests must stay offline: use `JsonlSource` + `vader`, or inject a fake client (`RedditSource(reddit=...)`,
+  `XSource(..., http_get=...)`, `ClaudeScorer(client=...)`); never hit Reddit/X/Anthropic/yfinance.
 - Never add a scorer that mutates `posts`; scores are append-only per (post_id, scorer).
 - New sources implement `BaseSource.fetch(asset, days, limit)` and set `Post.source`.
 - Keep `.env` out of git. Secrets come only from `config.settings`.
@@ -36,7 +37,7 @@ streamlit run dashboard/app.py
 
 ## Roadmap (see docs/PLAN.md)
 1. ✅ Scaffold: Reddit → VADER/FinBERT → DuckDB → Streamlit
-2. Backfill 90 days per ticker; compare FinBERT vs Claude sample; tune `label_from_score` bands
+2. Backfill ~30 days per ticker (Reddit search depth limit); compare FinBERT vs Claude sample; tune `label_from_score` bands
 3. Bot/spam filter (author age, repeated text, karma) and de-dup of crossposts
 4. Scheduler (cron / GitHub Actions) + alerting on `attention_z > 2`
 5. Optional X module behind `X_BEARER_TOKEN`

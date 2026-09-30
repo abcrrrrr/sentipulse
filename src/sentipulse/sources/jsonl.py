@@ -19,7 +19,7 @@ class JsonlSource(BaseSource):
 
     def fetch(self, asset: Asset, days: int = 1, limit: int = 200) -> Iterator[Post]:
         n = 0
-        with self.path.open() as f:
+        with self.path.open(encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:

@@ -13,7 +13,7 @@ from .models import Post, Score
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS posts (
-    id VARCHAR PRIMARY KEY,
+    id VARCHAR,
     source VARCHAR,
     ticker VARCHAR,
     created_at TIMESTAMPTZ,
@@ -23,16 +23,19 @@ CREATE TABLE IF NOT EXISTS posts (
     community VARCHAR,
     upvotes INTEGER,
     num_comments INTEGER,
-    is_comment BOOLEAN
+    is_comment BOOLEAN,
+    -- One thread can be about several assets, so a post is stored once per ticker.
+    PRIMARY KEY (id, ticker)
 );
 CREATE TABLE IF NOT EXISTS scores (
     post_id VARCHAR,
+    ticker VARCHAR,
     scorer VARCHAR,
     label VARCHAR,
     score DOUBLE,
     confidence DOUBLE,
-    scored_at TIMESTAMP,
-    PRIMARY KEY (post_id, scorer)
+    scored_at TIMESTAMPTZ,
+    PRIMARY KEY (post_id, ticker, scorer)
 );
 CREATE TABLE IF NOT EXISTS daily (
     ticker VARCHAR,
@@ -53,6 +56,11 @@ CREATE TABLE IF NOT EXISTS prices (
     volume DOUBLE,
     PRIMARY KEY (ticker, day)
 );
+-- Paid X reads per UTC day, so the budget holds across separate runs.
+CREATE TABLE IF NOT EXISTS x_reads (
+    day DATE PRIMARY KEY,
+    reads INTEGER
+);
 """
 
 
@@ -69,7 +77,7 @@ class Store:
             return 0
         df = pd.DataFrame([p.model_dump() for p in posts])
         self.con.register("df_posts", df)
-        self.con.execute("INSERT OR REPLACE INTO posts SELECT * FROM df_posts")
+        self.con.execute("INSERT OR REPLACE INTO posts BY NAME SELECT * FROM df_posts")
         self.con.unregister("df_posts")
         return len(df)
 
@@ -78,7 +86,9 @@ class Store:
             return 0
         df = pd.DataFrame([s.model_dump() for s in scores])
         self.con.register("df_scores", df)
-        self.con.execute("INSERT OR REPLACE INTO scores SELECT * FROM df_scores")
+        self.con.execute(
+            "INSERT OR REPLACE INTO scores BY NAME SELECT * FROM df_scores"
+        )
         self.con.unregister("df_scores")
         return len(df)
 
@@ -105,7 +115,7 @@ class Store:
         rows = self.con.execute(
             """
             SELECT p.* FROM posts p
-            LEFT JOIN scores s ON s.post_id = p.id AND s.scorer = ?
+            LEFT JOIN scores s ON s.post_id = p.id AND s.ticker = p.ticker AND s.scorer = ?
             WHERE p.ticker = ? AND s.post_id IS NULL
             ORDER BY p.created_at DESC LIMIT ?
             """,
@@ -113,32 +123,53 @@ class Store:
         ).df()
         return [Post(**r) for r in rows.to_dict("records")]
 
-    def scored_posts(self, ticker: str, scorer: str, days: int = 30) -> pd.DataFrame:
+    def scored_posts(self, ticker: str, scorer: str, days: int | None = 30) -> pd.DataFrame:
+        """Scored posts from the last `days` days; `days=None` means all history."""
         return self.con.execute(
             """
             SELECT p.id, p.source, p.ticker, p.created_at, p.upvotes, p.is_comment,
                    p.community, p.text, p.url, s.label, s.score, s.confidence
-            FROM posts p JOIN scores s ON s.post_id = p.id
+            FROM posts p JOIN scores s ON s.post_id = p.id AND s.ticker = p.ticker
             WHERE p.ticker = ? AND s.scorer = ?
-              AND p.created_at >= now() - (? * INTERVAL '1 day')
+              AND (?::INTEGER IS NULL OR p.created_at >= now() - (? * INTERVAL '1 day'))
             """,
-            [ticker, scorer, days],
+            [ticker, scorer, days, days],
         ).df()
 
-    def daily(self, ticker: str, scorer: str, days: int = 90) -> pd.DataFrame:
+    def daily(self, ticker: str, scorer: str, days: int | None = 90) -> pd.DataFrame:
+        """The last `days` days of daily rows (counted back from the latest day with
+        data, not from today), joined to closes. `days=None` means all history."""
         return self.con.execute(
             """
             SELECT d.*, pr.close
             FROM daily d LEFT JOIN prices pr ON pr.ticker = d.ticker AND pr.day = d.day
             WHERE d.ticker = ? AND d.scorer = ?
-              AND d.day >= current_date - ?
+              AND (?::INTEGER IS NULL OR d.day > (
+                  SELECT max(day) FROM daily WHERE ticker = d.ticker AND scorer = d.scorer
+              ) - ?::INTEGER)
             ORDER BY d.day
             """,
-            [ticker, scorer, days],
+            [ticker, scorer, days, days],
         ).df()
 
+    def x_reads_today(self) -> int:
+        row = self.con.execute(
+            "SELECT reads FROM x_reads WHERE day = (now() AT TIME ZONE 'UTC')::DATE"
+        ).fetchone()
+        return row[0] if row else 0
+
+    def add_x_reads(self, n: int) -> None:
+        self.con.execute(
+            """
+            INSERT INTO x_reads VALUES ((now() AT TIME ZONE 'UTC')::DATE, ?)
+            ON CONFLICT (day) DO UPDATE SET reads = reads + excluded.reads
+            """,
+            [n],
+        )
+
     def tickers(self) -> list[str]:
-        return [r[0] for r in self.con.execute("SELECT DISTINCT ticker FROM posts ORDER BY 1").fetchall()]
+        rows = self.con.execute("SELECT DISTINCT ticker FROM posts ORDER BY 1").fetchall()
+        return [r[0] for r in rows]
 
     def close(self):
         self.con.close()

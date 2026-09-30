@@ -38,6 +38,7 @@ class VaderScorer(BaseScorer):
             out.append(
                 Score(
                     post_id=p.id,
+                    ticker=p.ticker,
                     scorer=self.name,
                     label=label_from_score(c, band=0.05),
                     score=float(c),
