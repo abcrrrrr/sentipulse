@@ -38,6 +38,9 @@ streamlit run dashboard/app.py
 ## Roadmap (see docs/PLAN.md)
 1. ✅ Scaffold: Reddit → VADER/FinBERT → DuckDB → Streamlit
 2. Backfill ~30 days per ticker (Reddit search depth limit); compare FinBERT vs Claude sample; tune `label_from_score` bands
+2b. Source independence while Reddit access is pending: Bluesky source, Wikipedia page-view attention,
+   news (Finnhub/Marketaux) as a separate `source`. Reddit access is approval-gated and being wound down;
+   Devvit is not a substitute (TypeScript, in-Reddit only). See docs/PLAN.md "Data source risk".
 3. Bot/spam filter (author age, repeated text, karma) and de-dup of crossposts
 4. Scheduler (cron / GitHub Actions) + alerting on `attention_z > 2`
 5. Optional X module behind `X_BEARER_TOKEN`

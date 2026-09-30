@@ -9,7 +9,7 @@ and charted against price in Streamlit.
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[all]"
-cp .env.example .env            # add Reddit client id/secret (free "script" app)
+cp .env.example .env            # add Reddit client id/secret (needs approved API access)
 pytest -q                       # offline sanity check
 
 sentipulse run NVDA BTC         # collect → FinBERT → aggregate → prices
@@ -36,7 +36,7 @@ sentipulse report NVDA --scorer vader
 
 | Source | Access | Cost | Notes |
 |---|---|---|---|
-| Reddit | Free "script" app, OAuth | $0 for personal/research use, 100 req/min | Default. Six stock + six crypto subs. |
+| Reddit | OAuth "script" app, **after manual approval** | $0 for non-commercial use, 100 req/min | Default. New access needs approval (weeks), and Reddit plans to wind down the Data API. See docs/PLAN.md, *Data source risk*. |
 | X | Pay-per-use credits | ~$0.005 per post read; no free read tier since Feb 2026 | Optional. `X_DAILY_READ_BUDGET` caps spend. |
 | Anthropic | API key | Pennies/day at 25-50 posts sampled per ticker | Quality check + sarcasm-aware labels. |
 | Yahoo Finance | yfinance | $0 | Daily closes for overlay. |
