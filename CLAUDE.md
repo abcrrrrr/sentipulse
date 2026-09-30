@@ -14,6 +14,7 @@ reasoning behind design choices before proposing architecture changes.
 - `src/sentipulse/store.py` — DuckDB, four tables: posts, scores, daily, prices.
   Scores are keyed by (post_id, scorer) so multiple scorers coexist.
 - `src/sentipulse/aggregate.py` — daily roll-up + rolling signals.
+- `src/sentipulse/agreement.py` — scorer-vs-scorer calibration (kappa, band sweep).
 - `src/sentipulse/cli.py` — Typer commands; `run` is the daily job.
 - `dashboard/app.py` — Streamlit.
 
@@ -23,6 +24,7 @@ pip install -e ".[all]"            # or ".[dev]" for tests only
 pytest -q                          # offline, ~1s, no network or model download
 sentipulse run NVDA BTC --claude-sample 40
 sentipulse collect NVDA --jsonl data/sample_nvda.jsonl --days 30   # offline replay
+sentipulse agreement NVDA          # finbert vs claude: kappa, confusion, neutral-band sweep
 streamlit run dashboard/app.py
 ```
 

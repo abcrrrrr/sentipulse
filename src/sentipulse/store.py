@@ -152,6 +152,25 @@ class Store:
             [ticker, scorer, days, days],
         ).df()
 
+    def paired_scores(
+        self, ticker: str, scorer_a: str, scorer_b: str, days: int | None = 30
+    ) -> pd.DataFrame:
+        """Posts scored by both scorers, side by side (suffixes _a / _b)."""
+        return self.con.execute(
+            """
+            SELECT p.id AS post_id, p.created_at, p.community, p.text, p.url,
+                   a.label AS label_a, a.score AS score_a,
+                   b.label AS label_b, b.score AS score_b
+            FROM posts p
+            JOIN scores a ON a.post_id = p.id AND a.ticker = p.ticker AND a.scorer = ?
+            JOIN scores b ON b.post_id = p.id AND b.ticker = p.ticker AND b.scorer = ?
+            WHERE p.ticker = ?
+              AND (?::INTEGER IS NULL OR p.created_at >= now() - (? * INTERVAL '1 day'))
+            ORDER BY p.created_at
+            """,
+            [scorer_a, scorer_b, ticker, days, days],
+        ).df()
+
     def x_reads_today(self) -> int:
         row = self.con.execute(
             "SELECT reads FROM x_reads WHERE day = (now() AT TIME ZONE 'UTC')::DATE"

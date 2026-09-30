@@ -6,6 +6,7 @@
     sentipulse aggregate NVDA
     sentipulse prices NVDA
     sentipulse report NVDA
+    sentipulse agreement NVDA      # finbert vs claude on the shared sample
     sentipulse run NVDA BTC        # collect → score → aggregate → prices, all in one
 """
 
@@ -139,6 +140,49 @@ def report(
     cols = ["day", "n_posts", "net_ratio", "net_ma_short", "weighted_score", "attention_z", "close"]
     with pd.option_context("display.width", 140, "display.float_format", "{:.3f}".format):
         typer.echo(d[cols].to_string(index=False))
+
+
+@app.command()
+def agreement(
+    ticker: str,
+    a: str = typer.Option("finbert", help="Scorer that labels every post"),
+    b: str = typer.Option("claude", help="Reference scorer (usually the Claude sample)"),
+    days: int = typer.Option(30),
+    show: int = typer.Option(5, help="How many top disagreements to print"),
+    db: str = typer.Option(None),
+):
+    """Compare two scorers on the posts both have scored, and suggest a neutral band."""
+    import pandas as pd
+
+    from .agreement import agreement_stats, sweep_band, top_disagreements
+
+    store = Store(db)
+    asset = resolve(ticker)
+    paired = store.paired_scores(asset.ticker, a, b, days=days)
+    store.close()
+    stats = agreement_stats(paired)
+    if stats.n == 0:
+        typer.echo(f"No posts scored by both {a} and {b} for {asset.ticker}.")
+        raise typer.Exit(1)
+
+    typer.echo(
+        f"{asset.ticker}: {a} vs {b}, n={stats.n}  match={stats.match_rate:.1%}  "
+        f"kappa={stats.kappa:.2f}  score corr={stats.score_corr:.2f}"
+    )
+    typer.echo(f"\nConfusion (rows={a}, cols={b}):\n{stats.confusion.to_string()}")
+
+    sweep = sweep_band(paired)
+    best = sweep.loc[sweep.kappa.idxmax()]
+    with pd.option_context("display.float_format", "{:.3f}".format):
+        typer.echo(f"\nNeutral band sweep ({a} relabeled from its score):")
+        typer.echo(sweep.to_string(index=False))
+    typer.echo(f"Best band for agreement with {b}: {best.band:.2f} (kappa {best.kappa:.2f})")
+
+    if show:
+        typer.echo(f"\nTop {show} disagreements:")
+        for r in top_disagreements(paired, show).itertuples():
+            text = " ".join(r.text.split())[:140]
+            typer.echo(f"  {a}={r.score_a:+.2f} {b}={r.score_b:+.2f}  {text}")
 
 
 @app.command()
