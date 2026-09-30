@@ -47,6 +47,7 @@ class FinBertScorer(BaseScorer):
                 out.append(
                     Score(
                         post_id=p.id,
+                        ticker=p.ticker,
                         scorer=self.name,
                         label=label,  # type: ignore[arg-type]
                         score=float(signed),

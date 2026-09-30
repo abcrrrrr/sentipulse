@@ -23,17 +23,22 @@ log = logging.getLogger(__name__)
 class RedditSource(BaseSource):
     name = "reddit"
 
-    def __init__(self, subreddits: list[str] | None = None, expand_comments: int = 10):
-        import praw  # imported lazily so tests don't need it
+    def __init__(
+        self, subreddits: list[str] | None = None, expand_comments: int = 10, reddit=None
+    ):
+        """`reddit` is an injected PRAW-compatible client (tests); default builds one."""
+        if reddit is None:
+            import praw  # imported lazily so tests don't need it
 
-        if not settings.reddit_configured:
-            raise RuntimeError("Reddit credentials missing; see .env.example")
-        self.reddit = praw.Reddit(
-            client_id=settings.reddit_client_id,
-            client_secret=settings.reddit_client_secret,
-            user_agent=settings.reddit_user_agent,
-        )
-        self.reddit.read_only = True
+            if not settings.reddit_configured:
+                raise RuntimeError("Reddit credentials missing; see .env.example")
+            reddit = praw.Reddit(
+                client_id=settings.reddit_client_id,
+                client_secret=settings.reddit_client_secret,
+                user_agent=settings.reddit_user_agent,
+            )
+            reddit.read_only = True
+        self.reddit = reddit
         self.subreddits = subreddits
         self.expand_comments = expand_comments
 
@@ -43,6 +48,7 @@ class RedditSource(BaseSource):
         return CRYPTO_SUBREDDITS if asset.kind == "crypto" else STOCK_SUBREDDITS
 
     def fetch(self, asset: Asset, days: int = 1, limit: int = 200) -> Iterator[Post]:
+        """Yield at most `limit` posts in total, submissions and comments combined."""
         since = datetime.now(timezone.utc) - timedelta(days=days)
         time_filter = "day" if days <= 1 else "week" if days <= 7 else "month"
         seen: set[str] = set()
@@ -75,12 +81,16 @@ class RedditSource(BaseSource):
                             num_comments=int(s.num_comments),
                         )
                         yielded += 1
-                        # Expand comments on the most active threads.
-                        if self.expand_comments and s.num_comments > 5:
-                            yield from self._comments(s, asset, sub, since, seen)
                         if yielded >= limit:
                             return
-                except Exception as e:  # rate limits, deleted subs, etc.
+                        # Expand comments on the most active threads.
+                        if self.expand_comments and s.num_comments > 5:
+                            for c in self._comments(s, asset, sub, since, seen):
+                                yield c
+                                yielded += 1
+                                if yielded >= limit:
+                                    return
+                except Exception as e:  # noqa: BLE001 — rate limits, deleted subs, etc.
                     log.warning("reddit search failed r/%s %r: %s", sub, q, e)
                     time.sleep(2)
 
@@ -88,7 +98,7 @@ class RedditSource(BaseSource):
         try:
             submission.comments.replace_more(limit=0)
             comments = submission.comments.list()[: self.expand_comments * 5]
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — PRAW raises many unrelated types
             log.warning("comment expansion failed %s: %s", submission.id, e)
             return
         n = 0

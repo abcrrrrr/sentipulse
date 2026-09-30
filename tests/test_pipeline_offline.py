@@ -26,11 +26,12 @@ def test_offline_pipeline(tmp_path):
     store.upsert_scores(scores)
     assert store.unscored_posts("NVDA", "vader") == []
 
-    scored = store.scored_posts("NVDA", "vader", days=30)
+    # days=None: the sample is fixed-date data, so a now()-relative window would rot.
+    scored = store.scored_posts("NVDA", "vader", days=None)
     daily = daily_aggregate(scored, "vader")
     assert daily.n_posts.sum() == len(posts)
     store.upsert_daily(daily)
-    out = store.daily("NVDA", "vader", days=30)
+    out = store.daily("NVDA", "vader", days=None)
     assert len(out) == len(daily)
     assert out.net_ratio.between(-1, 1).all()
     store.close()

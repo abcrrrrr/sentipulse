@@ -10,7 +10,7 @@ requires-python = ">=3.10"
 dependencies = [
     "praw>=7.7",
     "duckdb>=1.0",
-    "pandas>=2.0",
+    "pandas>=2.2",
     "typer>=0.12",
     "pydantic>=2.0",
     "python-dotenv>=1.0",

@@ -27,7 +27,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 log = logging.getLogger("sentipulse")
 
 
-def _source(name: str, jsonl: str | None):
+def _source(name: str, jsonl: str | None, store: Store):
     if jsonl:
         from .sources import JsonlSource
 
@@ -39,7 +39,7 @@ def _source(name: str, jsonl: str | None):
     if name == "x":
         from .sources import XSource
 
-        return XSource()
+        return XSource(store)
     raise typer.BadParameter(f"unknown source {name}")
 
 
@@ -54,7 +54,7 @@ def collect(
 ):
     """Fetch posts mentioning each ticker and store them."""
     store = Store(db)
-    src = _source(source, jsonl)
+    src = _source(source, jsonl, store)
     for t in tickers:
         asset = resolve(t)
         posts: list[Post] = list(src.fetch(asset, days=days, limit=limit))
@@ -134,7 +134,7 @@ def report(
     d = add_signals(store.daily(asset.ticker, scorer, days=days))
     store.close()
     if d.empty:
-        typer.echo(f"No daily data for {asset.ticker} / {scorer}. Run collect → score → aggregate.")
+        typer.echo(f"No daily data for {asset.ticker} / {scorer}. Run collect -> score -> aggregate.")
         raise typer.Exit(1)
     cols = ["day", "n_posts", "net_ratio", "net_ma_short", "weighted_score", "attention_z", "close"]
     with pd.option_context("display.width", 140, "display.float_format", "{:.3f}".format):

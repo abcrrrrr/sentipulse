@@ -31,7 +31,7 @@ def daily_aggregate(scored: pd.DataFrame, scorer: str, min_posts: int = 1) -> pd
         wsum = w.sum()
         return pd.Series(
             {
-                "n_posts": int(len(g)),
+                "n_posts": len(g),
                 "mean_score": float(s.mean()),
                 "weighted_score": float((w * s).sum() / wsum) if wsum > 0 else float(s.mean()),
                 "bull_ratio": float(g["is_bull"].mean()),
@@ -47,13 +47,29 @@ def daily_aggregate(scored: pd.DataFrame, scorer: str, min_posts: int = 1) -> pd
 
 
 def add_signals(daily: pd.DataFrame, short: int = 3, long: int = 14) -> pd.DataFrame:
-    """Rolling smoothing + z-scored attention, for the dashboard / research."""
+    """Rolling smoothing + z-scored attention for one ticker/scorer series.
+
+    Windows are calendar days: days with no posts are inserted with n_posts=0
+    (sentiment columns stay NaN). attention_z compares today's volume with the
+    previous `long` days only, so a spike can't dilute its own baseline.
+    """
     if daily.empty:
         return daily
-    d = daily.sort_values("day").copy()
+    d = daily.copy()
+    d["day"] = pd.to_datetime(d["day"])
+    d = d.set_index("day").sort_index()
+    d = d.reindex(pd.date_range(d.index.min(), d.index.max(), freq="D"))
+    d["n_posts"] = d["n_posts"].fillna(0).astype(int)
+    for col in ("ticker", "scorer"):
+        if col in d:
+            d[col] = d[col].ffill()
+    d.index.name = "day"
+    d = d.reset_index()
+    d["day"] = d["day"].dt.date
+
     d["net_ma_short"] = d["net_ratio"].rolling(short, min_periods=1).mean()
     d["net_ma_long"] = d["net_ratio"].rolling(long, min_periods=1).mean()
-    vol_mean = d["n_posts"].rolling(long, min_periods=2).mean()
-    vol_std = d["n_posts"].rolling(long, min_periods=2).std().replace(0, np.nan)
-    d["attention_z"] = ((d["n_posts"] - vol_mean) / vol_std).fillna(0.0)
+    baseline = d["n_posts"].shift(1).rolling(long, min_periods=2)
+    vol_std = baseline.std().replace(0, np.nan)
+    d["attention_z"] = ((d["n_posts"] - baseline.mean()) / vol_std).fillna(0.0)
     return d

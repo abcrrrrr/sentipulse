@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -31,9 +31,10 @@ class Score(BaseModel):
     """Sentiment score for one post from one scorer."""
 
     post_id: str
+    ticker: str  # scores are per (post, ticker): stance on NVDA != stance on AMD
     scorer: str  # "vader" | "finbert" | "claude"
     label: Label
     # Signed score in [-1, 1]: p(positive) - p(negative) for model scorers.
     score: float = Field(ge=-1.0, le=1.0)
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
-    scored_at: datetime = Field(default_factory=datetime.utcnow)
+    scored_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

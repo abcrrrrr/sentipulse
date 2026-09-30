@@ -40,7 +40,7 @@ class Settings:
         default_factory=lambda: os.getenv("REDDIT_USER_AGENT", "python:sentipulse:0.1")
     )
     anthropic_api_key: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
-    claude_model: str = field(default_factory=lambda: os.getenv("CLAUDE_MODEL", "claude-sonnet-4-5"))
+    claude_model: str = field(default_factory=lambda: os.getenv("CLAUDE_MODEL", "claude-sonnet-5-5"))
     x_bearer_token: str = field(default_factory=lambda: os.getenv("X_BEARER_TOKEN", ""))
     x_daily_read_budget: int = field(
         default_factory=lambda: int(os.getenv("X_DAILY_READ_BUDGET", "500"))
