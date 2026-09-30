@@ -26,6 +26,18 @@ sentipulse aggregate NVDA --scorer vader
 sentipulse report NVDA --scorer vader
 ```
 
+## Calibrating FinBERT against Claude
+
+Once a few days of `--claude-sample` scores exist:
+
+```bash
+sentipulse agreement NVDA --a finbert --b claude --days 30
+```
+
+This prints the match rate, Cohen's kappa, score correlation and a confusion matrix
+for the posts both scorers labelled. It then sweeps the neutral band that FinBERT's
+signed score is labelled with, and prints the posts where the two disagree most.
+
 ## What you get
 
 `daily` table per ticker/day/scorer: `n_posts`, `mean_score`, `weighted_score`
