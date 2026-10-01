@@ -1,4 +1,4 @@
-"""Streamlit dashboard: sentiment vs. price per ticker.
+"""Streamlit dashboard: sentiment and attention vs. price per ticker.
 
     streamlit run dashboard/app.py
 """
@@ -9,16 +9,16 @@ import pandas as pd
 import streamlit as st
 
 from sentipulse.aggregate import add_signals
-from sentipulse.charts import sentiment_price_figure
+from sentipulse.charts import attention_figure, sentiment_price_figure
 from sentipulse.store import Store
 
 st.set_page_config(page_title="SentiPulse", layout="wide")
-st.title("SentiPulse — retail sentiment vs. price")
+st.title("SentiPulse — retail sentiment and attention")
 
 store = Store()
 tickers = store.tickers()
 if not tickers:
-    st.info("No data yet. Run `sentipulse run NVDA` first.")
+    st.info("No data yet. Run `sentipulse attention NVDA --days 90` or `sentipulse run NVDA`.")
     st.stop()
 
 c1, c2, c3 = st.columns([2, 2, 1])
@@ -26,9 +26,17 @@ ticker = c1.selectbox("Ticker", tickers)
 scorer = c2.selectbox("Scorer", ["finbert", "vader", "claude"])
 days = c3.slider("Days", 14, 365, 90)
 
+st.subheader("Attention")
+att = store.attention(ticker, days=days)
+if att.empty:
+    st.info(f"No attention data for {ticker}. Run `sentipulse attention {ticker}`.")
+else:
+    st.plotly_chart(attention_figure(att), width="stretch")
+
+st.subheader("Sentiment")
 d = add_signals(store.daily(ticker, scorer, days=days))
 if d.empty:
-    st.warning(f"No daily rows for {ticker} / {scorer}.")
+    st.info(f"No sentiment data for {ticker} / {scorer} yet (needs a post source).")
     st.stop()
 
 latest = d.iloc[-1]

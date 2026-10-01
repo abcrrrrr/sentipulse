@@ -34,7 +34,7 @@ Ticker matching is the main source of garbage. Rules in `tickers.py`: a `$cashta
 
 ## Data source risk
 
-*Status as of 30 September 2026.* Reddit access is no longer self-service, and the project must not depend on a single gatekeeper.
+*Status as of 1 October 2026.* **Our Reddit Data API request was rejected (1 October 2026).** The pipeline now runs on sources that need no approval; `RedditSource` stays in the code in case access opens later.
 
 - **Approval gate (since November 2025).** Under Reddit's Responsible Builder Policy, every new OAuth client needs manual approval before it can call the Data API. You file a request (developer / researcher / moderator) and wait. Reported waits run from days to weeks, some requests get no answer, and small personal projects are the most-rejected category. Approved credentials keep working.
 - **Planned wind-down (announced 5 August 2026).** Reddit said it will gradually restrict the public Data API and require third-party apps to move to its Developer Platform (Devvit). There is no cut-off date, and Reddit said nothing changes in 2026.
@@ -55,6 +55,8 @@ Ticker matching is the main source of garbage. Rules in `tickers.py`: a `$cashta
 | X | Retail posts | Pay-per-use, no approval wait | ~$0.005/read | Already built (Phase 5). The only large retail source that can be switched on today without waiting for approval. |
 | Stocktwits | Retail posts with self-labelled bull/bear tags | **Closed to new API registrations** (review in progress) | n/a | Ideal data, but not available. Re-check periodically. |
 | Google Trends | Search attention | Official API is an application-gated alpha | n/a | Skip. Unofficial scrapers break often and sit in a terms-of-service grey area. |
+| **ApeWisdom** (`apewisdom.io/api`) | Reddit + 4chan /biz/ mention counts per ticker (no text) | Open, no key; no published terms or rate limits | $0 | **Added.** Reddit attention without Reddit access. Rolling-24h snapshot only, so history accumulates from the first run. Crypto tickers are suffixed `.X`. |
+| TradingView (Ideas, Minds) | Retail posts; Ideas carry self-labelled Long/Short | No public API for community content; terms forbid "any automated data collection methods" (features are "for manual use only") and any non-display use | n/a | **Excluded.** Useful for manual spot checks of a flagged spike only. |
 
 Scraping (Reddit's unauthenticated `.json` endpoints, Stocktwits' web endpoints, or third-party scraper services) is out of scope: it breaks without warning and conflicts with the platforms' terms.
 
@@ -66,7 +68,7 @@ Phase 1.5 (done): fixes from code review (per-ticker post keys, calendar-day att
 
 Phase 2, first two weeks of real data: **file the Reddit Data API access request on day one**, because it can take weeks. Once approved, create a Reddit script app, run `sentipulse run` daily for five to ten tickers, and backfill by running with `--days 30` (Reddit search's time filter is coarse, so backfill depth is limited to about a month). Compare FinBERT and Claude labels on the sample with `sentipulse agreement`; tune the neutral band in `label_from_score`; decide whether comment expansion adds signal or noise.
 
-Phase 2b, source independence (can start while the Reddit request is pending): a Bluesky source (`sources/bluesky.py`, app-password auth), a Wikipedia page-view attention series, and a news source (Finnhub or Marketaux) stored as its own `source` so news and social sentiment are never mixed in one number. Success criterion: at least one social source producing ≥20 posts/day for most tickers without Reddit.
+Phase 2b, source independence (now the main path, since Reddit rejected the request): Wikipedia page views and ApeWisdom mentions (**done**: `sentipulse attention`, stored in the `attention` table, shown on the dashboard), a Bluesky source (`sources/bluesky.py`, app-password auth; search needs login since August 2026, cashtags native since January 2026), and a news source (Finnhub or Marketaux) stored as its own `source` so news and social sentiment are never mixed in one number. Success criterion: at least one social source producing ≥20 posts/day for most tickers without Reddit.
 
 Phase 3, hygiene: bot and spam filtering (account age, repeated text across threads, karma floor), crosspost de-duplication, and a per-subreddit weight so r/wallstreetbets does not swamp r/investing.
 

@@ -26,3 +26,19 @@ def test_figure_builds_with_price_and_volume_panels():
         "Close",
         "Posts",
     }
+
+
+def test_attention_figure_has_one_panel_per_series():
+    from sentipulse.charts import attention_figure
+
+    long = pd.DataFrame(
+        {
+            "ticker": "NVDA",
+            "day": [date(2026, 9, 28), date(2026, 9, 29), date(2026, 9, 29)],
+            "source": ["wikipedia", "wikipedia", "apewisdom"],
+            "metric": ["views", "views", "mentions"],
+            "value": [6000.0, 6500.0, 86.0],
+        }
+    )
+    fig = attention_figure(long)
+    assert {t.name for t in fig.data} == {"Wikipedia views", "Reddit mentions (ApeWisdom)"}
