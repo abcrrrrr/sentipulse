@@ -56,6 +56,15 @@ CREATE TABLE IF NOT EXISTS prices (
     volume DOUBLE,
     PRIMARY KEY (ticker, day)
 );
+-- Daily attention numbers (no sentiment): Wikipedia views, ApeWisdom mentions, ...
+CREATE TABLE IF NOT EXISTS attention (
+    ticker VARCHAR,
+    day DATE,
+    source VARCHAR,
+    metric VARCHAR,
+    value DOUBLE,
+    PRIMARY KEY (ticker, day, source, metric)
+);
 -- Paid X reads per UTC day, so the budget holds across separate runs.
 CREATE TABLE IF NOT EXISTS x_reads (
     day DATE PRIMARY KEY,
@@ -108,6 +117,14 @@ class Store:
         self.con.register("df_prices", df[["ticker", "day", "close", "volume"]])
         self.con.execute("INSERT OR REPLACE INTO prices SELECT * FROM df_prices")
         self.con.unregister("df_prices")
+        return len(df)
+
+    def upsert_attention(self, df: pd.DataFrame) -> int:
+        if df.empty:
+            return 0
+        self.con.register("df_attention", df[["ticker", "day", "source", "metric", "value"]])
+        self.con.execute("INSERT OR REPLACE INTO attention BY NAME SELECT * FROM df_attention")
+        self.con.unregister("df_attention")
         return len(df)
 
     # ---- reads ----------------------------------------------------------
@@ -171,6 +188,20 @@ class Store:
             [scorer_a, scorer_b, ticker, days, days],
         ).df()
 
+    def attention(self, ticker: str, days: int | None = 90) -> pd.DataFrame:
+        """Long-format attention rows; window counted back from the latest day with data."""
+        return self.con.execute(
+            """
+            SELECT * FROM attention a
+            WHERE a.ticker = ?
+              AND (?::INTEGER IS NULL OR a.day > (
+                  SELECT max(day) FROM attention WHERE ticker = a.ticker
+              ) - ?::INTEGER)
+            ORDER BY a.day, a.source, a.metric
+            """,
+            [ticker, days, days],
+        ).df()
+
     def x_reads_today(self) -> int:
         row = self.con.execute(
             "SELECT reads FROM x_reads WHERE day = (now() AT TIME ZONE 'UTC')::DATE"
@@ -187,7 +218,9 @@ class Store:
         )
 
     def tickers(self) -> list[str]:
-        rows = self.con.execute("SELECT DISTINCT ticker FROM posts ORDER BY 1").fetchall()
+        rows = self.con.execute(
+            "SELECT ticker FROM posts UNION SELECT ticker FROM attention ORDER BY 1"
+        ).fetchall()
         return [r[0] for r in rows]
 
     def close(self):

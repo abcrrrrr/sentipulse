@@ -18,6 +18,7 @@ import random
 import typer
 
 from .aggregate import add_signals, daily_aggregate
+from .config import settings
 from .models import Post
 from .scoring import get_scorer
 from .store import Store
@@ -186,6 +187,26 @@ def agreement(
 
 
 @app.command()
+def attention(
+    tickers: list[str],
+    days: int = typer.Option(30, help="Wikipedia backfill window; ApeWisdom is always today"),
+    db: str = typer.Option(None),
+):
+    """Collect attention series: Wikipedia page views and ApeWisdom mention counts."""
+    from .attention.apewisdom import ApeWisdom
+    from .attention.wikipedia import WikipediaPageviews
+
+    store = Store(db)
+    wiki, ape = WikipediaPageviews(), ApeWisdom()
+    for t in tickers:
+        asset = resolve(t)
+        n_wiki = store.upsert_attention(wiki.fetch(asset, days=days))
+        n_ape = store.upsert_attention(ape.fetch(asset))
+        log.info("%s: stored %d wikipedia + %d apewisdom rows", asset.ticker, n_wiki, n_ape)
+    store.close()
+
+
+@app.command()
 def run(
     tickers: list[str],
     days: int = typer.Option(1),
@@ -194,13 +215,18 @@ def run(
     with_prices: bool = typer.Option(True),
     db: str = typer.Option(None),
 ):
-    """Daily job: collect → score → (claude sample) → aggregate → prices."""
-    collect(tickers, days=days, limit=300, source="reddit", jsonl=None, db=db)
-    score(tickers, scorer=scorer, sample=0, seed=42, db=db)
-    if claude_sample:
-        score(tickers, scorer="claude", sample=claude_sample, seed=42, db=db)
-        aggregate(tickers, scorer="claude", days=90, db=db)
-    aggregate(tickers, scorer=scorer, days=90, db=db)
+    """Daily job: attention → collect → score → (claude sample) → aggregate → prices."""
+    # A week of Wikipedia history each run self-heals days the job missed.
+    attention(tickers, days=max(days, 7), db=db)
+    if settings.reddit_configured:
+        collect(tickers, days=days, limit=300, source="reddit", jsonl=None, db=db)
+        score(tickers, scorer=scorer, sample=0, seed=42, db=db)
+        if claude_sample:
+            score(tickers, scorer="claude", sample=claude_sample, seed=42, db=db)
+            aggregate(tickers, scorer="claude", days=90, db=db)
+        aggregate(tickers, scorer=scorer, days=90, db=db)
+    else:
+        log.warning("Reddit credentials not set; skipping post collection and scoring")
     if with_prices:
         prices(tickers, days=90, db=db)
 

@@ -17,6 +17,9 @@ class Asset:
     kind: str  # "stock" | "crypto"
     names: tuple[str, ...] = field(default_factory=tuple)  # full names / aliases
     price_symbol: str = ""  # yfinance symbol, e.g. "BTC-USD"
+    # Canonical English Wikipedia title. The pageviews API does not follow redirects,
+    # so this must be the target page ("Palantir", not "Palantir Technologies").
+    wiki_title: str = ""
 
     @property
     def yf_symbol(self) -> str:
@@ -33,21 +36,25 @@ def register(asset: Asset) -> Asset:
 
 
 for _a in [
-    Asset("NVDA", "stock", ("nvidia",)),
-    Asset("TSLA", "stock", ("tesla",)),
-    Asset("AAPL", "stock", ("apple",)),
-    Asset("AMD", "stock", ("advanced micro devices",)),
-    Asset("PLTR", "stock", ("palantir",)),
-    Asset("GME", "stock", ("gamestop",)),
-    Asset("MSTR", "stock", ("microstrategy", "strategy inc")),
-    Asset("COIN", "stock", ("coinbase",)),
-    Asset("BTC", "crypto", ("bitcoin",), "BTC-USD"),
-    Asset("ETH", "crypto", ("ethereum", "ether"), "ETH-USD"),
-    Asset("SOL", "crypto", ("solana",), "SOL-USD"),
-    Asset("DOGE", "crypto", ("dogecoin",), "DOGE-USD"),
-    Asset("XRP", "crypto", ("ripple",), "XRP-USD"),
+    Asset("NVDA", "stock", ("nvidia",), wiki_title="Nvidia"),
+    Asset("TSLA", "stock", ("tesla",), wiki_title="Tesla, Inc."),
+    Asset("AAPL", "stock", ("apple",), wiki_title="Apple Inc."),
+    Asset("AMD", "stock", ("advanced micro devices",), wiki_title="AMD"),
+    Asset("PLTR", "stock", ("palantir",), wiki_title="Palantir"),
+    Asset("GME", "stock", ("gamestop",), wiki_title="GameStop"),
+    Asset("MSTR", "stock", ("microstrategy", "strategy inc"), wiki_title="MicroStrategy"),
+    Asset("COIN", "stock", ("coinbase",), wiki_title="Coinbase"),
+    Asset("BTC", "crypto", ("bitcoin",), "BTC-USD", wiki_title="Bitcoin"),
+    Asset("ETH", "crypto", ("ethereum", "ether"), "ETH-USD", wiki_title="Ethereum"),
+    Asset("SOL", "crypto", ("solana",), "SOL-USD", wiki_title="Solana (blockchain platform)"),
+    Asset("DOGE", "crypto", ("dogecoin",), "DOGE-USD", wiki_title="Dogecoin"),
+    Asset("XRP", "crypto", ("ripple",), "XRP-USD", wiki_title="XRP Ledger"),
 ]:
     register(_a)
+
+
+def all_assets() -> list[Asset]:
+    return list(_REGISTRY.values())
 
 
 def resolve(symbol: str) -> Asset:
